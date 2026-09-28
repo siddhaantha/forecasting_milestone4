@@ -41,7 +41,18 @@ def index():
         "SELECT COUNT(DISTINCT product_id) AS v FROM sales_items si JOIN sales s ON s.id=si.sale_id "
         "WHERE s.sale_date >= date('now','-30 days')"
     )
-    low_stock_cnt = dbFetchOne("SELECT COUNT(*) AS v FROM products WHERE stock_quantity <= min_stock_level AND status='active'")
+    threshold_setting = dbFetchOne(
+        "SELECT setting_value FROM settings WHERE setting_key = ?", ("low_stock_threshold",)
+    )
+    try:
+        low_stock_threshold = max(0, int(threshold_setting["setting_value"])) if threshold_setting else 10
+    except (TypeError, ValueError):
+        low_stock_threshold = 10
+
+    low_stock_cnt = dbFetchOne(
+        "SELECT COUNT(*) AS v FROM products WHERE stock_quantity <= ? AND status='active'",
+        (low_stock_threshold,),
+    )
 
     products = dbFetchAll(
         "SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id "
@@ -54,7 +65,7 @@ def index():
             p["label"], p["cls"], p["color"] = "Out of Stock", "badge-out-stock", "#ef4444"
         elif p["stock_quantity"] <= 5:
             p["label"], p["cls"], p["color"] = "Critical", "badge-critical", "#ef4444"
-        elif p["stock_quantity"] <= p["min_stock_level"]:
+        elif p["stock_quantity"] <= low_stock_threshold:
             p["label"], p["cls"], p["color"] = "Low Stock", "badge-low-stock", "#f59e0b"
         else:
             p["label"], p["cls"], p["color"] = "In Stock", "badge-in-stock", "#10b981"

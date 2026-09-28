@@ -19,8 +19,18 @@ SETTINGS_FIELDS = [
 @role_required("admin")
 def index():
     if request.method == "POST" and verify_csrf(request.form.get("csrf_token", "")):
+        try:
+            low_stock_threshold = int(request.form.get("low_stock_threshold", "10"))
+            if low_stock_threshold < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            flash("Low stock threshold must be a whole number of 0 or more.", "error")
+            return redirect(url_for("settings.index"))
+
         for key in SETTINGS_FIELDS:
             val = request.form.get(key, "").strip()
+            if key == "low_stock_threshold":
+                val = str(low_stock_threshold)
             existing = dbFetchOne("SELECT id FROM settings WHERE setting_key = ?", (key,))
             if existing:
                 dbQuery("UPDATE settings SET setting_value = ? WHERE setting_key = ?", (val, key))
